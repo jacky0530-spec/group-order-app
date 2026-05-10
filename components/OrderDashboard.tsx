@@ -1,6 +1,7 @@
 // @ts-nocheck
 "use client";
 import { useState, useRef, useEffect } from "react";
+import { supabase } from "./lib/supabase";
 
 const MOCK_ORDERS = [
   {
@@ -267,6 +268,41 @@ function OrderCard({ order, onTap, onStatusChange }) {
 
 export default function MobileOrderDashboard() {
   const [orders, setOrders] = useState(MOCK_ORDERS);
+  // 從 Supabase 載入訂單
+useEffect(() => {
+  async function fetchOrders() {
+    const { data: ordersData } = await supabase
+      .from("orders")
+      .select(`
+        id, order_date, shipping_fee, status, source_text,
+        buyers ( id, name, phone, address, region ),
+        order_items ( id, sku, product_name, variant, qty )
+      `)
+      .order("created_at", { ascending: false });
+
+    if (ordersData && ordersData.length > 0) {
+      const formatted = ordersData.map((o) => ({
+        id: o.id,
+        buyer_name: o.buyers?.name || "未知",
+        region: o.buyers?.region || null,
+        phone: o.buyers?.phone || null,
+        address: o.buyers?.address || null,
+        order_date: o.order_date,
+        shipping_fee: o.shipping_fee,
+        status: o.status,
+        items: o.order_items || [],
+      }));
+      setOrders(formatted);
+    }
+  }
+  fetchOrders();
+}, []);
+
+// 更新狀態到 Supabase
+async function updateStatusDB(id, status) {
+  await supabase.from("orders").update({ status }).eq("id", id);
+  updateStatus(id, status);
+}
   const [tab, setTab] = useState("orders");
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -297,34 +333,76 @@ export default function MobileOrderDashboard() {
   };
 
   async function handleParse() {
-    if (!parseText.trim()) return;
-    setParsing(true);
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: `你是台灣團購訂單解析助手。將 LINE 訂單訊息解析成結構化 JSON。
-只回傳 JSON，不含任何說明或 markdown：
-{"orders":[{"buyer_name":"string","region":"string or null","phone":"string or null","address":"string or null","order_date":"YYYY-MM-DD or null","shipping_fee":100,"items":[{"sku":"string or null","product_name":"string","variant":"string or null","qty":0}]}]}`,
-          messages: [{ role: "user", content: parseText }],
-        }),
-      });
-      const data = await res.json();
-      const text = data.content?.map(i => i.text || "").join("") || "";
-      const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
-      const newOrders = parsed.orders.map((o, i) => ({
-        ...o, id: `ORD-NEW-${Date.now()}-${i}`, status: "pending",
-      }));
-      setOrders(p => [...newOrders, ...p]);
-      setShowParser(false);
-      setParseText("");
-      setTab("orders");
-    } catch { alert("解析失敗，請確認格式"); }
-    finally { setParsing(false); }
+  if (!parseText.trim()) return;
+  setParsing(true);
+  try {
+    const res = await fetch("/api/parse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: parseText }),
+    });
+    const parsed = await res.json();
+    if (parsed.error) throw new Error(parsed.error);
+const newOrders = [];
+for (const o of parsed.orders) {
+  // 1. 先建立或找到買家
+  const { data: buyerData } = await supabase
+    .from("buyers")
+    .insert({
+      name: o.buyer_name,
+      phone: o.phone,
+      address: o.address,
+      region: o.region,
+    })
+    .select()
+    .single();
+
+  if (!buyerData) continue;
+
+  // 2. 建立訂單（含原始文字備註）
+  const { data: orderData } = await supabase
+    .from("orders")
+    .insert({
+      buyer_id: buyerData.id,
+      order_date: o.order_date,
+      shipping_fee: o.shipping_fee,
+      status: "pending",
+      source_text: o.source_text,  // ← 原始 LINE 訊息存這裡
+    })
+    .select()
+    .single();
+
+  if (!orderData) continue;
+
+  // 3. 建立訂單明細
+  await supabase.from("order_items").insert(
+    o.items.map((item: any) => ({
+      order_id: orderData.id,
+      sku: item.sku,
+      product_name: item.product_name,
+      variant: item.variant,
+      qty: item.qty,
+    }))
+  );
+
+  newOrders.push({
+    ...o,
+    id: orderData.id,
+    buyer_name: o.buyer_name,
+    status: "pending",
+  });
+}
+
+setOrders((p: any) => [...newOrders, ...p]);
+setShowParser(false);
+setParseText("");
+
+  } catch (e) {
+    alert("解析失敗，請確認格式");
+  } finally {
+    setParsing(false);
   }
+}
 
   return (
     <div style={{ maxWidth:480, margin:"0 auto", background:"#F9FAFB",
