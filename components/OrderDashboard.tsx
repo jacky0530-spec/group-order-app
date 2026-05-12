@@ -291,6 +291,7 @@ useEffect(() => {
         shipping_fee: o.shipping_fee,
         status: o.status,
         items: o.order_items || [],
+        source_text: o.source_text || null,
       }));
       setOrders(formatted);
     }
@@ -515,7 +516,7 @@ setParseText("");
         {[
           { id:"orders", icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>, label:"訂單" },
           { id:"add", icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>, label:"新增", action:() => setShowParser(true) },
-          { id:"stats", icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>, label:"統計" },
+          { id:"stats", icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>, label:"統計", action:() => window.location.href = "/report" },
         ].map(({ id, icon, label, action }) => {
           const active = tab === id;
           return (
@@ -589,6 +590,21 @@ setParseText("");
                   {o.address}
                 </div>
               )}
+              
+{o.source_text && (
+  <div style={{ marginBottom:18 }}>
+    <div style={{ fontSize:11, color:"#9CA3AF", fontWeight:600,
+      letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:8 }}>
+      原始訂單備註
+    </div>
+    <div style={{ padding:"12px 14px", background:"#F9FAFB",
+      border:"1px solid #F3F4F6", borderRadius:10,
+      fontSize:12, color:"#374151", lineHeight:1.8,
+      fontFamily:"monospace", whiteSpace:"pre-wrap" }}>
+      {o.source_text}
+    </div>
+  </div>
+)}
 
               {/* Items */}
               <div style={{ fontSize:11, color:"#9CA3AF", fontWeight:600,
@@ -625,6 +641,21 @@ setParseText("");
                 letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:10 }}>
                 更新狀態
               </div>
+              {/* 刪除按鈕 */}
+<div style={{ marginTop:20, paddingTop:16, borderTop:"1px solid #F3F4F6" }}>
+  <button onClick={async () => {
+    if (!confirm(`確定要刪除 ${o.buyer_name} 的訂單？`)) return;
+    await supabase.from("order_items").delete().eq("order_id", o.id);
+    await supabase.from("orders").delete().eq("id", o.id);
+    setOrders(p => p.filter(x => x.id !== o.id));
+    setSelectedOrder(null);
+  }}
+    style={{ width:"100%", padding:"12px", border:"1.5px solid #FCA5A5",
+      borderRadius:10, background:"#FFF1F1", color:"#DC2626",
+      fontSize:13, fontWeight:600, cursor:"pointer" }}>
+    🗑 刪除此訂單
+  </button>
+</div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
                 {Object.entries(STATUS_META).map(([s, m]) => {
                   const active = o.status === s;
