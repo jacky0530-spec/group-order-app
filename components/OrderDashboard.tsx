@@ -280,6 +280,7 @@ useEffect(() => {
       `)
       .order("created_at", { ascending: false });
 
+console.log("訂單資料:", ordersData);
     if (ordersData && ordersData.length > 0) {
       const formatted = ordersData.map((o) => ({
         id: o.id,
