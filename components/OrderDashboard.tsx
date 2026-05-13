@@ -267,7 +267,7 @@ function OrderCard({ order, onTap, onStatusChange }) {
 }
 
 export default function MobileOrderDashboard() {
-  const [orders, setOrders] = useState(MOCK_ORDERS);
+  const [orders, setOrders] = useState([]);
   // 從 Supabase 載入訂單
 useEffect(() => {
   async function fetchOrders() {
