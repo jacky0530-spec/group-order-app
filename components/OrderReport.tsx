@@ -53,9 +53,9 @@ function generateDailyReport(date: string, orders: any[]) {
     });
     if (o.source_text) {
   txt += `   📝 原始備註：\n`;
-  o.source_text.split("\n").forEach(line => 
+  o.source_text.split("\n").forEach(srcLine  => 
     {
-    txt += `      ${line}\n`;
+    txt += `      ${srcLine}\n`;
      });
   txt += `\n`;
   }
