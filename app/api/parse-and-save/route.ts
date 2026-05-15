@@ -8,7 +8,7 @@ const supabase = createClient(
 );
 
 export async function POST(req: NextRequest) {
-  const { text } = await req.json();
+  const { text, line_message_id } = await req.json();
   console.log("parse-and-save 收到:", { text: text?.slice(0,30), line_message_id });
 // 只有有 line_message_id 才檢查重複
 if (line_message_id) {
