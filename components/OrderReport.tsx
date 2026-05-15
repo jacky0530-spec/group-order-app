@@ -39,26 +39,17 @@ function downloadText(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
-function generateDailyReport(date: string, orders: any[]) {
-  const dayOrders = orders.filter(o => o.order_date === date);
+function generateDailyReport(date, orders) {
+  const dayOrders = orders.filter(o => (o.order_date || "").slice(0,10) === date);
   const totalQty = dayOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + i.qty, 0), 0);
   const totalShipping = dayOrders.reduce((s, o) => s + o.shipping_fee, 0);
 
-  // 商品匯總
-  const productMap: Record<string, number> = {};
+  const productMap = {};
   dayOrders.forEach(o => {
-    o.items.forEach(i => {
-      const key = i.variant ? `${i.product_name}（${i.variant}）` : i.product_name;
-      productMap[key] = (productMap[key] || 0) + i.qty;
+    o.items.forEach(item => {
+      const key = item.variant ? `${item.product_name}（${item.variant}）` : item.product_name;
+      productMap[key] = (productMap[key] || 0) + item.qty;
     });
-    if (o.source_text) {
-  txt += `   📝 原始備註：\n`;
-  o.source_text.split("\n").forEach(srcLine  => 
-    {
-    txt += `      ${srcLine}\n`;
-     });
-  txt += `\n`;
-  }
   });
 
   let txt = `═══════════════════════════════════\n`;
@@ -78,10 +69,16 @@ function generateDailyReport(date: string, orders: any[]) {
     txt += `\n${idx + 1}. ${o.buyer_name}${o.region ? `（${o.region}）` : ""}\n`;
     txt += `   狀態：${STATUS_META[o.status]?.label || o.status}\n`;
     txt += `   運費：+${o.shipping_fee} 元\n`;
-    o.items.forEach(i => {
-      const name = i.variant ? `${i.product_name}（${i.variant}）` : i.product_name;
-      txt += `   • ${name} × ${i.qty}\n`;
+    o.items.forEach(item => {
+      const name = item.variant ? `${item.product_name}（${item.variant}）` : item.product_name;
+      txt += `   • ${name} × ${item.qty}\n`;
     });
+    if (o.source_text) {
+      txt += `   📝 原始備註：\n`;
+      o.source_text.split("\n").forEach(srcLine => {
+        txt += `      ${srcLine}\n`;
+      });
+    }
   });
   txt += `\n═══════════════════════════════════\n`;
   txt += `  匯出時間：${new Date().toLocaleString("zh-TW")}\n`;
@@ -89,29 +86,27 @@ function generateDailyReport(date: string, orders: any[]) {
   return txt;
 }
 
-function generateMonthlyReport(month: string, orders: any[]) {
-  const monthOrders = orders.filter(o => o.order_date?.startsWith(month));
+function generateMonthlyReport(month, orders) {
+  const monthOrders = orders.filter(o => (o.order_date || "").slice(0,7) === month);
   const totalQty = monthOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + i.qty, 0), 0);
   const totalShipping = monthOrders.reduce((s, o) => s + o.shipping_fee, 0);
 
-  // 按日期分組
-  const byDate: Record<string, any[]> = {};
+  const byDate = {};
   monthOrders.forEach(o => {
-    if (!byDate[o.order_date]) byDate[o.order_date] = [];
-    byDate[o.order_date].push(o);
+    const dt = (o.order_date || "").slice(0,10);
+    if (!byDate[dt]) byDate[dt] = [];
+    byDate[dt].push(o);
   });
 
-  // 商品匯總
-  const productMap: Record<string, number> = {};
+  const productMap = {};
   monthOrders.forEach(o => {
-    o.items.forEach(i => {
-      const key = i.variant ? `${i.product_name}（${i.variant}）` : i.product_name;
-      productMap[key] = (productMap[key] || 0) + i.qty;
+    o.items.forEach(item => {
+      const key = item.variant ? `${item.product_name}（${item.variant}）` : item.product_name;
+      productMap[key] = (productMap[key] || 0) + item.qty;
     });
   });
 
-  // 買家統計
-  const buyerMap: Record<string, number> = {};
+  const buyerMap = {};
   monthOrders.forEach(o => {
     buyerMap[o.buyer_name] = (buyerMap[o.buyer_name] || 0) + o.items.reduce((s, i) => s + i.qty, 0);
   });
@@ -139,16 +134,16 @@ function generateMonthlyReport(month: string, orders: any[]) {
   txt += `\n【每日明細】\n`;
   Object.entries(byDate)
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .forEach(([date, dayOrders]) => {
-      const dayQty = dayOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + i.qty, 0), 0);
-      txt += `\n  ▸ ${date}（${dayOrders.length} 筆｜${dayQty} 件）\n`;
-      dayOrders.forEach(o => {
-  txt += `    • ${o.buyer_name}：`;
-  txt += o.items.map(i => `${i.product_name} ×${i.qty}`).join("、") + "\n";
-  if (o.source_text) {
-    txt += `      📝 ${o.source_text.split("\n").slice(0, 3).join(" / ")}\n`;
-  }
-});
+    .forEach(([dt, dtOrders]) => {
+      const dayQty = dtOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + i.qty, 0), 0);
+      txt += `\n  ▸ ${dt}（${dtOrders.length} 筆｜${dayQty} 件）\n`;
+      dtOrders.forEach(o => {
+        txt += `    • ${o.buyer_name}：`;
+        txt += o.items.map(i => `${i.product_name} ×${i.qty}`).join("、") + "\n";
+        if (o.source_text) {
+          txt += `      📝 ${o.source_text.split("\n").slice(0, 3).join(" / ")}\n`;
+        }
+      });
     });
   txt += `\n═══════════════════════════════════\n`;
   txt += `  匯出時間：${new Date().toLocaleString("zh-TW")}\n`;
