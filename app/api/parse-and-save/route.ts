@@ -9,13 +9,14 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   const { text } = await req.json();
-// 檢查是否已存在
+  console.log("parse-and-save 收到:", { text: text?.slice(0,30), line_message_id });
+// 只有有 line_message_id 才檢查重複
 if (line_message_id) {
   const { data: existing } = await supabase
     .from("orders")
     .select("id")
     .eq("line_message_id", line_message_id)
-    .single();
+    .maybeSingle(); // ← 改用 maybeSingle，找不到不會報錯
   
   if (existing) {
     console.log("重複訊息，略過:", line_message_id);
