@@ -10,19 +10,20 @@ const supabase = createClient(
 export async function POST(req: NextRequest) {
   const { text, line_message_id } = await req.json();
   console.log("parse-and-save 收到:", { text: text?.slice(0,30), line_message_id });
-// 只有有 line_message_id 才檢查重複
-if (line_message_id) {
-  const { data: existing } = await supabase
-    .from("orders")
-    .select("id")
-    .eq("line_message_id", line_message_id)
-    .maybeSingle(); // ← 改用 maybeSingle，找不到不會報錯
-  
-  if (existing) {
-    console.log("重複訊息，略過:", line_message_id);
-    return NextResponse.json({ status: "duplicate" });
-  }
+// 用訊息內容 + 買家名稱防重複（24小時內）
+const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+const { data: existing } = await supabase
+  .from("orders")
+  .select("id")
+  .eq("source_text", text)
+  .gte("created_at", oneDayAgo)
+  .maybeSingle();
+
+if (existing) {
+  console.log("24小時內重複訊息，略過");
+  return NextResponse.json({ status: "duplicate" });
 }
+
   const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
