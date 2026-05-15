@@ -9,7 +9,19 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   const { text } = await req.json();
-
+// 檢查是否已存在
+if (line_message_id) {
+  const { data: existing } = await supabase
+    .from("orders")
+    .select("id")
+    .eq("line_message_id", line_message_id)
+    .single();
+  
+  if (existing) {
+    console.log("重複訊息，略過:", line_message_id);
+    return NextResponse.json({ status: "duplicate" });
+  }
+}
   const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -47,6 +59,7 @@ export async function POST(req: NextRequest) {
         shipping_fee: o.shipping_fee,
         status: "pending",
         source_text: text,
+        line_message_id: line_message_id || null,
       }).select().single();
 
     if (!orderData) continue;

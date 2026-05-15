@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
+        line_message_id: event.message.id 
       });
     } catch (err) {
       console.error("解析失敗:", err);
