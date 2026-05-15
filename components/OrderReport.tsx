@@ -51,6 +51,14 @@ function generateDailyReport(date: string, orders: any[]) {
       const key = i.variant ? `${i.product_name}（${i.variant}）` : i.product_name;
       productMap[key] = (productMap[key] || 0) + i.qty;
     });
+    if (o.source_text) {
+  txt += `   📝 原始備註：\n`;
+  o.source_text.split("\n").forEach(line => 
+    {
+    txt += `      ${line}\n`;
+     });
+  txt += `\n`;
+  }
   });
 
   let txt = `═══════════════════════════════════\n`;
@@ -135,9 +143,12 @@ function generateMonthlyReport(month: string, orders: any[]) {
       const dayQty = dayOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + i.qty, 0), 0);
       txt += `\n  ▸ ${date}（${dayOrders.length} 筆｜${dayQty} 件）\n`;
       dayOrders.forEach(o => {
-        txt += `    • ${o.buyer_name}：`;
-        txt += o.items.map(i => `${i.product_name} ×${i.qty}`).join("、") + "\n";
-      });
+  txt += `    • ${o.buyer_name}：`;
+  txt += o.items.map(i => `${i.product_name} ×${i.qty}`).join("、") + "\n";
+  if (o.source_text) {
+    txt += `      📝 ${o.source_text.split("\n").slice(0, 3).join(" / ")}\n`;
+  }
+});
     });
   txt += `\n═══════════════════════════════════\n`;
   txt += `  匯出時間：${new Date().toLocaleString("zh-TW")}\n`;
@@ -376,7 +387,13 @@ function handlePrint() {
             <div class="order-name">${o.buyer_name}${o.region ? `（${o.region}）` : ""}</div>
             <div class="order-items">
               ${o.items.map(i => `${i.product_name}${i.variant ? `（${i.variant}）` : ""} ×${i.qty}`).join("　")}
-            </div>
+            ${o.source_text ? `
+  <div style="font-size:10px; color:#9CA3AF; margin-top:4px; 
+    font-family:monospace; white-space:pre-wrap; 
+    border-left:2px solid #E5E7EB; padding-left:8px;">
+    ${o.source_text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}
+  </div>` : ""}
+              </div>
           </div>
           <div class="order-qty">×${o.items.reduce((s, i) => s + i.qty, 0)}</div>
         </div>
